@@ -9,8 +9,10 @@
 #include <unistd.h>
 #include <fcntl.h>
 
-#include "utils.h"
 #include "log.h"
+
+/* Max size of HTTP header in most servers is 8KB */
+#define CONN_BUFFER_SIZE    1024*8
 
 static const char *conn_errors[] = {
 #define CONN_NO_ERROR               0
@@ -52,7 +54,9 @@ connection_t* init_connection(const char *host, const char *port, int *error)
     conn->host = strdup(host);
     conn->port = strdup(port);
 
-    if (!conn->host || !conn->port) {
+    conn->buffer = (char *)calloc(1, CONN_BUFFER_SIZE);
+
+    if (!conn->host || !conn->port || !conn->buffer) {
         error_code = CONN_BAD_ALLOC;
         goto err;
     }
@@ -118,6 +122,9 @@ void free_connection(connection_t *conn)
     if (conn->port)
         free(conn->port);
 
+    if (conn->buffer)
+        free(conn->buffer);
+
     if(conn->addr_info)
         freeaddrinfo(conn->addr_info);
 
@@ -155,63 +162,75 @@ int send_all(connection_t *conn, const char *buf, int len, int flags)
     int sockfd = 0;
     int n;
 
-    GOTO_ERR_IF(conn == NULL || conn->sockfd == 0);
+    if (conn == NULL || conn->sockfd == 0)
+        goto err;
 
     sockfd = conn->sockfd;
 
-    while(total < len)
+    while (total < len)
     {
         n = send(sockfd, buf+total, len-total, flags);
-        if(n == -1) { break; }
+        if (n == -1) { goto err; }
         total += n;
     }
 
-    return (n == -1 ? -1 : total);
+    return total;
 
 err:
-    LOG_E("Bad pointer");
+    LOG_E("Connection error");
     return -1;
 }
 
 #define CHUNK_SIZE 2048
-/* HTTP headers should fit in chunk size. Otherwise increase CHUNK_SIZE */
 int recv_all(connection_t *conn, int flags)
 {
     int sockfd = 0;
     size_t bytes_received = 0;
     size_t total_size = 0;
-    static char chunk[CHUNK_SIZE];
+    char * buffer = NULL;
 
-    GOTO_ERR_IF(conn == NULL || conn->sockfd == 0);
+    if (conn == NULL || conn->sockfd == 0 || conn->buffer == NULL)
+        goto err;
 
     sockfd = conn->sockfd;
+    buffer = conn->buffer;
 
     while(1)
     {
-        bytes_received = recv(sockfd, chunk , CHUNK_SIZE , flags);
+        bytes_received = recv(sockfd, buffer, CHUNK_SIZE, flags);
         total_size += bytes_received;
 
-        if( bytes_received == 0) {
+        if (bytes_received > 0) {
+            conn->process_response(conn->context, bytes_received);
+        }
+        else if (bytes_received == 0) {
             goto exit;
         }
-        else if (bytes_received > 0)
-        {
-            conn->process_response(conn->context, chunk, bytes_received);
+        else if (bytes_received < 0) {
+            goto err;
         }
+
+        if(conn->buffer_offset + CHUNK_SIZE > CONN_BUFFER_SIZE) {
+            LOG_E("HTTP header can't fit in 8KB");
+            goto err;
+        }
+
+        /* Append new data until all header has been receved */
+        buffer = conn->buffer + conn->buffer_offset;
     }
 
 exit:
     return total_size;
 
 err:
-    LOG_E("Bad pointer");
+    LOG_E("Connection error");
     return 0;
 }
 
 
 void print_connection_error(int error)
 {
-    if((size_t)error > sizeof(conn_errors)) {
+    if ((size_t)error > sizeof(conn_errors)) {
         LOG_E("Wrong error number");
         return;
     }

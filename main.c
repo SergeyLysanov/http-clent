@@ -5,7 +5,7 @@
 
 void print_usage()
 {
-    LOG_I("\n Usage: ./mail_http  http://username:password@example.com:123/path/data \n");
+    LOG_I("\n Usage: ./http  http://username:password@example.com:123/path/data \n");
 }
 
 int main(int argc, char *argv[])
@@ -17,6 +17,7 @@ int main(int argc, char *argv[])
 
     int error = 0;
     const char *url = argv[1];
+
     url_t *u = parse_url(url, &error);
     print_url(u);
 

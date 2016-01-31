@@ -1,5 +1,4 @@
 #include "url.h"
-#include "utils.h"
 #include "log.h"
 
 #include <cstring>
@@ -170,7 +169,7 @@ url_t* parse_url(const char *url, int *error_)
 
 
     error_code = parse_scheme(url, &scheme);
-    GOTO_ERR_IF(error_code);
+    if(error_code) { goto err; }
     u->scheme = scheme;
 
     /* find username and password */
@@ -183,7 +182,7 @@ url_t* parse_url(const char *url, int *error_)
     }
     else {
         error_code = parse_user_info(user_begin, user_end-1, &u->user, &u->password);
-        GOTO_ERR_IF(error_code);
+        if(error_code) { goto err; }
 
         host_begin = user_end + 1;
     }
@@ -192,7 +191,7 @@ url_t* parse_url(const char *url, int *error_)
     path_begin = strchr(host_begin, '/');
     path_end = strchr(host_begin, '?');
     error_code = parse_path(path_begin, path_end, &u->path, &u->file);
-    GOTO_ERR_IF(error_code);
+    if(error_code) { goto err; }
 
 
     /* Find port */
@@ -201,7 +200,7 @@ url_t* parse_url(const char *url, int *error_)
     /* there is non default port */
     if (port_begin) {
         error_code = parse_port(port_begin, port_end-1, &u->port);
-        GOTO_ERR_IF(error_code);
+        if(error_code) { goto err; }
 
         host_end = port_begin;
     }
@@ -211,7 +210,7 @@ url_t* parse_url(const char *url, int *error_)
     }
 
     error_code = parse_host(host_begin, host_end, &u->host);
-    GOTO_ERR_IF(error_code);
+    if(error_code) { goto err; }
 
     return u;
 

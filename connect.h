@@ -3,17 +3,22 @@
 
 #include <sys/socket.h>
 
-typedef void (*cb)(void *, const char *, int bytes);
+typedef void (*cb)(void *, int bytes);
 
 typedef struct connection {
-    char *host;
-    char *port;
+    char    *host;
+    char    *port;
     struct addrinfo *addr_info;
-    int sockfd;
-    bool opened;
+    int     sockfd;
+    bool    opened;
+
+    /* Buffer for response data */
+    char    *buffer;
+    size_t  buffer_offset;
+
     /* Callback information */
-    void *context;
-    cb process_response;
+    void    *context;
+    cb      process_response;
 } connection_t;
 
 connection_t * init_connection(const char *host, const char *port, int *error);

@@ -20,14 +20,17 @@
 #define HTTP_SERVUNAVAIL        503 /**< the server is not available */
 
 typedef struct http_request {
-    url_t*   url;
-    char    *request_buf;
+    connection_t    *conn;
+    url_t           *url;
+    char            *request_buf;
 
     int     response_code;
     int     content_length;
 
+    size_t  header_size;
     bool    header_parsed;
 
+    /* For chunked transfer encoding */
     bool    chunked;
     size_t  curr_chunk_size;
     size_t  chunk_size;

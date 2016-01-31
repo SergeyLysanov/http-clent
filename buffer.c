@@ -1,17 +1,16 @@
 #include "buffer.h"
 
-#include "utils.h"
 #include <cstdlib>
 #include <cstdarg>
 #include <cstdio>
-
 
 buffer_t * buffer_alloc(size_t capacity)
 {
     buffer_t *buf = (buffer_t *)calloc(1, sizeof(buffer_t));
     char *content = (char *)calloc(1, capacity*sizeof(char));
 
-    GOTO_ERR_IF(buf == NULL || content == NULL);
+    if(buf == NULL || content == NULL)
+        goto err;
 
     buf->capacity = capacity;
     buf->content = content;
@@ -27,16 +26,20 @@ err:
 
 void buffer_free(buffer_t *buffer)
 {
-    if(!buffer) return;
+    if(!buffer)
+        return;
 
-    if(buffer->content) free(buffer->content);
+    if(buffer->content)
+        free(buffer->content);
 
     free(buffer);
 }
 
 int buffer_append(buffer_t *buffer, char *append, int length)
 {
-    GOTO_ERR_IF((buffer->actual_size+length+1) > buffer->capacity);
+    /* Add 1 for NULL terminating symbol */
+    if((buffer->actual_size+length+1) > buffer->capacity)
+        goto err;
 
     strncpy(buffer->content + buffer->actual_size, append, length);
 
@@ -56,12 +59,12 @@ int buffer_appendf(buffer_t *buffer, const char *format, ...)
     va_start(argp, format);
 
     bytes_written = vasprintf(&tmp, format, argp);
-    GOTO_ERR_IF(bytes_written < 0);
+    if(bytes_written < 0) { goto err; }
 
     va_end(argp);
 
     status = buffer_append(buffer, tmp, bytes_written);
-    GOTO_ERR_IF(status != 0);
+    if(status != 0) { goto err; };
 
     free(tmp);
 
@@ -76,7 +79,7 @@ err:
 char * buffer_to_string(buffer_t *buffer)
 {
     char *string = (char *)calloc(1, buffer->actual_size+1);
-    GOTO_ERR_IF(string == 0);
+    if (string == NULL) { goto err; }
 
     strncpy(string, buffer->content, buffer->actual_size);
 
